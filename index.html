@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quin QA - Bugs Only Viewer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  
+  <style>
+    :root {
+      --bg-dark: #090d16;
+      --card-bg: #121827;
+      --card-border: rgba(255, 255, 255, 0.08);
+      --accent-blue: #2563eb;
+      --accent-cyan: #00f2fe;
+      --accent-green: #10b981;
+      --accent-red: #ef4444;
+      --accent-orange: #f59e0b;
+      --accent-purple: #8b5cf6;
+      --text-main: #f0f4f8;
+      --text-muted: #8e9bb0;
+      --input-bg: #1a2234;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', system-ui, sans-serif; }
+    body { background-color: var(--bg-dark); color: var(--text-main); min-height: 100vh; font-size: 14px; padding: 1.5rem; }
+    code, pre { font-family: 'JetBrains Mono', monospace; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg-dark); }
+    ::-webkit-scrollbar-thumb { background: #2a364f; border-radius: 4px; }
+
+    .container { max-width: 1440px; margin: 0 auto; }
+
+    /* Header Bar */
+    .header {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 1.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 1rem;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    }
+    .brand { display: flex; align-items: center; gap: 0.75rem; }
+    .brand-logo {
+      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
+      color: #090d16;
+      font-weight: 900;
+      font-size: 1.1rem;
+      padding: 0.35rem 0.85rem;
+      border-radius: 8px;
+      letter-spacing: 1px;
+    }
+    .brand-title { font-size: 1.3rem; font-weight: 800; color: #fff; }
+    .brand-sub { font-size: 0.82rem; color: var(--text-muted); margin-top: 2px; }
+
+    /* CENTER PULL REFRESH BUTTON */
+    .refresh-center-bar {
+      background: linear-gradient(135deg, rgba(37, 99, 235, 0.15), rgba(0, 242, 254, 0.08));
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      border-radius: 14px;
+      padding: 1.25rem;
+      margin-bottom: 1.5rem;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.75rem;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+    }
+
+    .btn-refresh {
+      background: linear-gradient(135deg, #2563eb, #00f2fe);
+      color: #090d16;
+      border: none;
+      padding: 0.85rem 2rem;
+      border-radius: 10px;
+      font-size: 1rem;
+      font-weight: 800;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.6rem;
+      transition: all 0.2s ease;
+      box-shadow: 0 4px 15px rgba(0, 242, 254, 0.3);
+    }
+    .btn-refresh:hover { transform: translateY(-2px); filter: brightness(1.1); box-shadow: 0 6px 20px rgba(0, 242, 254, 0.4); }
+    .btn-refresh:active { transform: translateY(0); }
+    .btn-refresh.spinning .icon { animation: spin 1s infinite linear; }
+    @keyframes spin { 100% { transform: rotate(360deg); } }
+
+    .sync-status { font-size: 0.85rem; color: var(--text-muted); display: flex; align-items: center; gap: 8px; }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #10b981; display: inline-block; }
+    .status-dot.syncing { background: #f59e0b; animation: pulse 1s infinite alternate; }
+    @keyframes pulse { 0% { opacity: 0.4; } 100% { opacity: 1; } }
+
+    /* Summary Stats Grid */
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+    .stat-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 1rem 1.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .stat-val { font-size: 1.6rem; font-weight: 800; }
+    .stat-lbl { font-size: 0.8rem; color: var(--text-muted); margin-top: 2px; }
+
+    /* Filters Bar */
+    .filters-bar {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 1rem;
+      margin-bottom: 1.5rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .search-input {
+      flex: 1;
+      min-width: 260px;
+      background: var(--input-bg);
+      border: 1px solid var(--card-border);
+      color: var(--text-main);
+      padding: 0.65rem 1rem;
+      border-radius: 8px;
+      font-size: 0.88rem;
+      outline: none;
+    }
+    .search-input:focus { border-color: #38bdf8; }
+
+    .platform-pills { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+    .pill-btn {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--card-border);
+      color: var(--text-muted);
+      padding: 0.45rem 0.85rem;
+      border-radius: 8px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .pill-btn:hover { color: #fff; border-color: rgba(255, 255, 255, 0.2); }
+    .pill-btn.active { background: linear-gradient(135deg, rgba(37, 99, 235, 0.3), rgba(0, 242, 254, 0.15)); color: #38bdf8; border-color: #38bdf8; }
+
+    .select-filter {
+      background: var(--input-bg);
+      border: 1px solid var(--card-border);
+      color: var(--text-main);
+      padding: 0.55rem 0.85rem;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      outline: none;
+    }
+
+    /* Table */
+    .table-container {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    }
+    .table { width: 100%; border-collapse: collapse; text-align: left; }
+    .table th {
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--text-muted);
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 0.9rem 1.1rem;
+      border-bottom: 1px solid var(--card-border);
+    }
+    .table td {
+      padding: 0.9rem 1.1rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      font-size: 0.88rem;
+      vertical-align: middle;
+    }
+    .table tr:hover { background: rgba(255, 255, 255, 0.02); }
+
+    /* Badges */
+    .bug-key { font-family: 'JetBrains Mono', monospace; font-weight: 700; color: #38bdf8; background: rgba(56, 189, 248, 0.1); padding: 0.25rem 0.55rem; border-radius: 6px; border: 1px solid rgba(56, 189, 248, 0.25); display: inline-block; }
+    .platform-pill { display: inline-flex; align-items: center; justify-content: center; padding: 0.22rem 0.6rem; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 0.73rem; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase; white-space: nowrap; user-select: none; }
+    .platform-pill-android { background: rgba(16, 185, 129, 0.18) !important; color: #34d399 !important; border: 1px solid rgba(16, 185, 129, 0.4) !important; box-shadow: 0 0 10px rgba(16, 185, 129, 0.2); }
+    .platform-pill-ios { background: rgba(56, 189, 248, 0.18) !important; color: #38bdf8 !important; border: 1px solid rgba(56, 189, 248, 0.4) !important; box-shadow: 0 0 10px rgba(56, 189, 248, 0.2); }
+    .platform-pill-web { background: rgba(168, 85, 247, 0.18) !important; color: #c084fc !important; border: 1px solid rgba(168, 85, 247, 0.4) !important; box-shadow: 0 0 10px rgba(168, 85, 247, 0.2); }
+    .platform-pill-backend { background: rgba(245, 158, 11, 0.18) !important; color: #fbbf24 !important; border: 1px solid rgba(245, 158, 11, 0.4) !important; box-shadow: 0 0 10px rgba(245, 158, 11, 0.2); }
+    .platform-pill-other { background: rgba(6, 182, 212, 0.18) !important; color: #22d3ee !important; border: 1px solid rgba(6, 182, 212, 0.4) !important; }
+    .badge { display: inline-flex; align-items: center; gap: 4px; padding: 0.25rem 0.6rem; border-radius: 6px; font-size: 0.75rem; font-weight: 600; }
+    .badge-critical { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); }
+    .badge-high { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4); }
+    .badge-medium { background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4); }
+    .badge-low { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); }
+
+    .env-tag { font-size: 0.75rem; font-weight: 700; padding: 0.15rem 0.45rem; border-radius: 4px; }
+    .env-tag.prod { color: #34d399; background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); }
+    .env-tag.dev { color: #fbbf24; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3); }
+
+    /* Modal Drawer */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.8); backdrop-filter: blur(6px); display: none; align-items: center; justify-content: center; z-index: 1000; padding: 1rem; }
+    .modal-overlay.active { display: flex; }
+    .modal-box { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 16px; width: 100%; max-width: 650px; max-height: 85vh; overflow-y: auto; padding: 1.5rem; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6); }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--card-border); }
+    .close-btn { background: transparent; border: none; color: var(--text-muted); font-size: 1.4rem; cursor: pointer; }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <!-- Header -->
+    <header class="header">
+      <div class="brand">
+        <div class="brand-logo">QUIN</div>
+        <div>
+          <div class="brand-title">Bug Tracker Viewer</div>
+          <div class="brand-sub">Simple Live QA Bug Sheet</div>
+        </div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 0.75rem;">
+        <a href="bugs_mail_draft.html" style="background: rgba(168, 85, 247, 0.15); border: 1px solid rgba(168, 85, 247, 0.4); color: #c084fc; text-decoration: none; padding: 0.45rem 0.9rem; border-radius: 8px; font-weight: 700; font-size: 0.82rem; display: inline-flex; align-items: center; gap: 6px;">
+          ✉️ Open Mail Drafter ↗
+        </a>
+        <div class="sync-status">
+          <span class="status-dot" id="statusDot"></span>
+          <span id="statusText">Ready to sync</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- CENTER PULL REFRESH BAR -->
+    <div class="refresh-center-bar">
+      <div style="display: flex; gap: 1rem; flex-wrap: wrap; justify-content: center;">
+        <button class="btn-refresh" id="refreshBtn" onclick="pullDataFromSheet()">
+          <span class="icon">🔄</span> PULL LATEST BUGS FROM GOOGLE SHEET
+        </button>
+        <button class="btn-refresh" style="background: linear-gradient(135deg, #10b981, #059669); color: #ffffff; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);" onclick="exportToExcel()">
+          <span>📊</span> DUMP ALL DATA TO EXCEL (.XLSX)
+        </button>
+      </div>
+      <div style="font-size: 0.8rem; color: #8e9bb0;" id="timestampText">
+        Last Synced: Never (Click button above or page auto-fetches)
+      </div>
+    </div>
+
+    <!-- Summary Stats -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div>
+          <div class="stat-val" id="statTotal" style="color: #38bdf8;">0</div>
+          <div class="stat-lbl">Total Bugs</div>
+        </div>
+        <div style="font-size: 1.5rem;">🐞</div>
+      </div>
+      <div class="stat-card">
+        <div>
+          <div class="stat-val" id="statCritical" style="color: #f87171;">0</div>
+          <div class="stat-lbl">Critical / High</div>
+        </div>
+        <div style="font-size: 1.5rem;">🔥</div>
+      </div>
+      <div class="stat-card">
+        <div>
+          <div class="stat-val" id="statActive" style="color: #fbbf24;">0</div>
+          <div class="stat-lbl">Active / Open</div>
+        </div>
+        <div style="font-size: 1.5rem;">⚡</div>
+      </div>
+      <div class="stat-card">
+        <div>
+          <div class="stat-val" id="statSolved" style="color: #34d399;">0</div>
+          <div class="stat-lbl">Solved / Closed</div>
+        </div>
+        <div style="font-size: 1.5rem;">✅</div>
+      </div>
+    </div>
+
+    <!-- Filters Bar -->
+    <div class="filters-bar">
+      <input type="text" class="search-input" id="searchInput" placeholder="Search by bug key, title, or details..." oninput="renderTable()">
+
+      <div class="platform-pills" id="platformPills">
+        <button class="pill-btn active" onclick="setPlatformFilter('All')">All Platforms</button>
+        <button class="pill-btn" onclick="setPlatformFilter('Android')">Android</button>
+        <button class="pill-btn" onclick="setPlatformFilter('iOS')">iOS</button>
+        <button class="pill-btn" onclick="setPlatformFilter('Backend')">Backend</button>
+        <button class="pill-btn" onclick="setPlatformFilter('Web')">Web</button>
+      </div>
+
+      <select class="select-filter" id="productFilter" onchange="renderTable()">
+        <option value="All">All Products</option>
+        <option value="Quin Within">Quin Within</option>
+        <option value="Quin Fly">Quin Fly</option>
+        <option value="Performance DC">Performance DC</option>
+        <option value="Performance App">Performance App</option>
+        <option value="Watch (All)">⌚ Watch (All Apps)</option>
+        <option value="Watch - Quin">⌚ Watch - Quin</option>
+        <option value="Watch - Fly">⌚ Watch - Fly</option>
+        <option value="Watch - Performance DC">⌚ Watch - Performance DC</option>
+        <option value="Quin Web Portal">Quin Web Portal</option>
+        <option value="APIs & Services">APIs & Services</option>
+      </select>
+
+      <select class="select-filter" id="severityFilter" onchange="renderTable()">
+        <option value="All">All Severities</option>
+        <option value="Critical">Critical</option>
+        <option value="High">High</option>
+        <option value="Medium">Medium</option>
+        <option value="Low">Low</option>
+      </select>
+
+      <select class="select-filter" id="sortFilter" onchange="handleSortSelect(this.value)">
+        <option value="id-desc">Sort: Newest First</option>
+        <option value="id-asc">Sort: Oldest First</option>
+        <option value="severity-desc">Sort: Highest Severity</option>
+        <option value="severity-asc">Sort: Lowest Severity</option>
+        <option value="bug_key-asc">Sort: Bug ID (A-Z)</option>
+        <option value="title-asc">Sort: Title (A-Z)</option>
+        <option value="product-asc">Sort: Product (A-Z)</option>
+        <option value="status-asc">Sort: Status</option>
+      </select>
+    </div>
+
+    <!-- Bugs Table -->
+    <div class="table-container">
+      <table class="table">
+        <thead>
+          <tr>
+            <th id="th-platform" onclick="handleSort('platform')" style="cursor: pointer;" title="Click to sort by Platform">PLATFORM ↕</th>
+            <th id="th-bug_key" onclick="handleSort('bug_key')" style="cursor: pointer;" title="Click to sort by Bug ID">Bug ID ↕</th>
+            <th id="th-title" onclick="handleSort('title')" style="cursor: pointer;" title="Click to sort by Title">Issue Summary ↕</th>
+            <th id="th-product" onclick="handleSort('product')" style="cursor: pointer;" title="Click to sort by Product">Platform / Product ↕</th>
+            <th id="th-environment" onclick="handleSort('environment')" style="cursor: pointer;" title="Click to sort by Environment">Environment ↕</th>
+            <th id="th-severity" onclick="handleSort('severity')" style="cursor: pointer;" title="Click to sort by Severity">Severity ↕</th>
+            <th id="th-category" onclick="handleSort('category')" style="cursor: pointer;" title="Click to sort by Category">Category ↕</th>
+            <th id="th-status" onclick="handleSort('status')" style="cursor: pointer;" title="Click to sort by Status">Status ↕</th>
+            <th>Reporter</th>
+          </tr>
+        </thead>
+        <tbody id="bugsTableBody">
+          <tr>
+            <td colSpan="9" style="text-align: center; padding: 2.5rem; color: #8e9bb0;">
+              ⏳ Loading bugs from Google Sheet...
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Detail Modal -->
+  <div class="modal-overlay" id="detailModal" onclick="closeModal(event)">
+    <div class="modal-box" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span id="modalPlatBadge"></span>
+          <span class="bug-key" id="modalKey">BUG-0000</span>
+          <span class="badge badge-high" id="modalSeverity">High</span>
+        </div>
+        <button class="close-btn" onclick="closeModal()">✕</button>
+      </div>
+      <h3 id="modalTitle" style="font-size: 1.15rem; margin-bottom: 1rem; color: #fff;"></h3>
+      <div style="background: #090d16; padding: 1rem; border-radius: 10px; border: 1px solid var(--card-border); margin-bottom: 1rem;">
+        <div style="font-size: 0.8rem; color: #8e9bb0; margin-bottom: 6px;">Description & Logs:</div>
+        <pre id="modalDesc" style="white-space: pre-wrap; font-size: 0.85rem; color: #cbd5e1;"></pre>
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; font-size: 0.85rem; color: #94a3b8;">
+        <div>Platform: <strong id="modalPlat" style="color: #fff;"></strong></div>
+        <div>Environment: <strong id="modalEnv" style="color: #fff;"></strong></div>
+        <div>Reporter: <strong id="modalReporter" style="color: #fff;"></strong></div>
+        <div>Version: <strong id="modalVer" style="color: #fff;"></strong></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const GOOGLE_SHEET_WEBHOOK = 'https://script.google.com/macros/s/AKfycbwIT4MqkJjnM7Y0EfXMWDkDY0ygStoExkVy0NrRi8nJxLIR2o6u2Zswznw6kP8NbvhG/exec';
+
+    let allBugs = [];
+    let activePlatform = 'All';
+    let sortField = 'id';
+    let sortDirection = 'desc';
+
+    function handleSort(field) {
+      if (sortField === field) {
+        sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+      } else {
+        sortField = field;
+        sortDirection = (field === 'severity' || field === 'id') ? 'desc' : 'asc';
+      }
+      updateSortHeaders();
+      const sortSelect = document.getElementById('sortFilter');
+      if (sortSelect) sortSelect.value = `${sortField}-${sortDirection}`;
+      renderTable();
+    }
+
+    function handleSortSelect(val) {
+      if (!val) return;
+      const [f, d] = val.split('-');
+      sortField = f;
+      sortDirection = d;
+      updateSortHeaders();
+      renderTable();
+    }
+
+    function updateSortHeaders() {
+      const cols = ['platform', 'bug_key', 'title', 'product', 'environment', 'severity', 'category', 'status'];
+      cols.forEach(c => {
+        const th = document.getElementById(`th-${c}`);
+        if (!th) return;
+        const colTitle = c === 'bug_key' ? 'Bug ID' : c === 'product' ? 'Platform / Product' : c.toUpperCase();
+        if (sortField === c) {
+          th.innerText = `${colTitle} ${sortDirection === 'asc' ? '▲' : '▼'}`;
+        } else {
+          th.innerText = `${colTitle} ↕`;
+        }
+      });
+    }
+
+    function updateProductDropdown() {
+      const select = document.getElementById('productFilter');
+      if (!select) return;
+      const currentVal = select.value;
+
+      const baseProducts = [
+        'Quin Within', 'Quin Fly', 'Performance DC', 'Performance App',
+        'Watch - Quin', 'Watch - Fly', 'Watch - Performance DC',
+        'Quin Web Portal', 'APIs & Services'
+      ];
+
+      const bugProducts = allBugs.map(b => String(b.product || '').trim()).filter(Boolean);
+      const allUnique = Array.from(new Set([...baseProducts, ...bugProducts])).sort((a,b) => a.localeCompare(b));
+
+      let html = `<option value="All">All Products</option>`;
+      html += `<option value="Watch (All)">⌚ Watch (All Apps)</option>`;
+      allUnique.forEach(name => {
+        const isWatch = name.toLowerCase().includes('watch');
+        html += `<option value="${escapeHtml(name)}">${isWatch ? '⌚ ' : ''}${escapeHtml(name)}</option>`;
+      });
+
+      select.innerHTML = html;
+      select.value = currentVal;
+    }
+
+    // Load from local storage cache initially if available
+    try {
+      const cached = localStorage.getItem('quin_simple_bugs');
+      if (cached) {
+        allBugs = JSON.parse(cached);
+        updateProductDropdown();
+        renderTable();
+      }
+    } catch(e) {}
+
+    // Pull data automatically on load
+    window.addEventListener('DOMContentLoaded', () => {
+      pullDataFromSheet();
+    });
+
+    async function pullDataFromSheet() {
+      const refreshBtn = document.getElementById('refreshBtn');
+      const statusDot = document.getElementById('statusDot');
+      const statusText = document.getElementById('statusText');
+      const timestampText = document.getElementById('timestampText');
+
+      refreshBtn.classList.add('spinning');
+      statusDot.className = 'status-dot syncing';
+      statusText.innerText = 'Syncing from Google Sheet...';
+
+      try {
+        const res = await fetch(GOOGLE_SHEET_WEBHOOK, { method: 'GET', redirect: 'follow' });
+        const text = await res.text();
+        if (text.trim().startsWith('<') || text.includes('accounts.google.com')) {
+          statusText.innerText = 'Sync Error (Web App Access Restricted)';
+          alert('Sync Failed: Google Sheets Web App returned HTML instead of JSON.\n\nTo fix this:\n1. Open your Google Sheet -> Extensions -> Apps Script\n2. Click "Deploy" -> "Manage deployments" (or "New deployment")\n3. Set "Execute as:" Me\n4. Set "Who has access:" Anyone (Must be "Anyone", NOT "Only myself")\n5. Click Deploy and save the new URL.');
+          return;
+        }
+        const data = JSON.parse(text);
+
+        if (data && Array.isArray(data.bugs)) {
+          allBugs = data.bugs.map(b => ({
+            ...b,
+            product: String(b.product || '').trim(),
+            platform: String(b.platform || '').trim(),
+            environment: String(b.environment || 'Prod').trim()
+          }));
+          localStorage.setItem('quin_simple_bugs', JSON.stringify(allBugs));
+          updateProductDropdown();
+          renderTable();
+          statusText.innerText = `Live Synced (${allBugs.length} records)`;
+        } else {
+          statusText.innerText = 'Sync Warning (Using cache)';
+        }
+
+        statusDot.className = 'status-dot';
+        const now = new Date().toLocaleTimeString();
+        timestampText.innerText = `Last Synced: ${now} (Auto-pulled on refresh)`;
+      } catch (err) {
+        console.error('Fetch error:', err);
+        statusDot.className = 'status-dot';
+        statusText.innerText = 'Offline Mode (Local Cache)';
+        if (allBugs.length === 0) {
+          renderFallbackSample();
+        }
+      } finally {
+        refreshBtn.classList.remove('spinning');
+      }
+    }
+
+    function getPlatformBadge(bug) {
+      if (!bug) return { text: 'aND', fullName: 'Android', className: 'platform-pill platform-pill-android', styleStr: '' };
+      let p = String(bug.platform || '').trim();
+      const keyUpper = (bug.bug_key || '').toUpperCase();
+      const titleUpper = (bug.title || '').toUpperCase();
+
+      if (!p || p === 'All Platforms' || p === 'All') {
+        if (keyUpper.startsWith('AND') || titleUpper.startsWith('AND') || titleUpper.includes('ANDROID')) {
+          p = 'Android';
+        } else if (keyUpper.startsWith('IOS') || titleUpper.startsWith('IOS') || titleUpper.includes('IOS')) {
+          p = 'iOS';
+        } else if (keyUpper.startsWith('WEB') || titleUpper.startsWith('WEB') || titleUpper.includes('WEB')) {
+          p = 'Web';
+        } else if (keyUpper.startsWith('BEND') || titleUpper.startsWith('BEND') || titleUpper.includes('BACKEND')) {
+          p = 'Backend';
+        } else {
+          p = 'Android';
+        }
+      }
+
+      const pLower = p.toLowerCase();
+      if (pLower.includes('android') || pLower === 'and') {
+        return {
+          text: 'aND',
+          fullName: 'Android',
+          className: 'platform-pill platform-pill-android',
+          styleStr: 'background: rgba(16, 185, 129, 0.18); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); box-shadow: 0 0 8px rgba(16, 185, 129, 0.2);'
+        };
+      } else if (pLower.includes('ios')) {
+        return {
+          text: 'iOS',
+          fullName: 'iOS',
+          className: 'platform-pill platform-pill-ios',
+          styleStr: 'background: rgba(56, 189, 248, 0.18); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4); box-shadow: 0 0 8px rgba(56, 189, 248, 0.2);'
+        };
+      } else if (pLower.includes('web')) {
+        return {
+          text: 'WEB',
+          fullName: 'Web',
+          className: 'platform-pill platform-pill-web',
+          styleStr: 'background: rgba(168, 85, 247, 0.18); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.4); box-shadow: 0 0 8px rgba(168, 85, 247, 0.2);'
+        };
+      } else if (pLower.includes('backend') || pLower.includes('bend') || pLower.includes('api')) {
+        return {
+          text: 'bEND',
+          fullName: 'Backend',
+          className: 'platform-pill platform-pill-backend',
+          styleStr: 'background: rgba(245, 158, 11, 0.18); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4); box-shadow: 0 0 8px rgba(245, 158, 11, 0.2);'
+        };
+      } else {
+        return {
+          text: p.substring(0, 4).toUpperCase(),
+          fullName: p,
+          className: 'platform-pill platform-pill-other',
+          styleStr: 'background: rgba(6, 182, 212, 0.18); color: #22d3ee; border: 1px solid rgba(6, 182, 212, 0.4);'
+        };
+      }
+    }
+
+    function setPlatformFilter(plat) {
+      activePlatform = plat;
+      const pills = document.querySelectorAll('.pill-btn');
+      pills.forEach(p => {
+        p.classList.toggle('active', p.innerText.includes(plat));
+      });
+      renderTable();
+    }
+
+    function renderTable() {
+      const tbody = document.getElementById('bugsTableBody');
+      const search = document.getElementById('searchInput').value.toLowerCase().trim();
+      const severity = document.getElementById('severityFilter').value;
+      const prodFilter = document.getElementById('productFilter') ? document.getElementById('productFilter').value.trim() : 'All';
+
+      const filtered = allBugs.filter(b => {
+        if (b.is_deleted === 1) return false;
+        if (activePlatform !== 'All' && String(b.platform || '').trim().toLowerCase() !== activePlatform.trim().toLowerCase()) return false;
+        if (severity !== 'All' && String(b.severity || '').trim().toLowerCase() !== severity.trim().toLowerCase()) return false;
+        if (prodFilter !== 'All') {
+          const pLower = String(b.product || '').trim().toLowerCase();
+          const fLower = String(prodFilter).trim().toLowerCase();
+          const tLower = String(b.title || '').trim().toLowerCase();
+          const dLower = String(b.device_model || '').trim().toLowerCase();
+
+          if (fLower === 'watch (all)' || fLower === 'all watch apps') {
+            if (!pLower.includes('watch') && !tLower.includes('watch') && !dLower.includes('watch')) return false;
+          } else {
+            const pNorm = pLower.replace(/[^a-z0-9]/g, '');
+            const fNorm = fLower.replace(/[^a-z0-9]/g, '');
+            const isPerfMatch = (pNorm.includes('perf') && pNorm.includes('app')) && (fNorm.includes('perf') && fNorm.includes('app'));
+            if (pLower !== fLower && pNorm !== fNorm && !isPerfMatch) return false;
+          }
+        }
+        if (search) {
+          const kMatch = String(b.bug_key || '').toLowerCase().includes(search);
+          const tMatch = String(b.title || '').toLowerCase().includes(search);
+          const dMatch = String(b.description || '').toLowerCase().includes(search);
+          if (!kMatch && !tMatch && !dMatch) return false;
+        }
+        return true;
+      });
+
+      // Sorted Bugs
+      const sorted = [...filtered].sort((a, b) => {
+        let valA = a[sortField];
+        let valB = b[sortField];
+
+        if (sortField === 'severity') {
+          const weights = { critical: 4, high: 3, medium: 2, low: 1 };
+          valA = weights[String(valA || '').toLowerCase()] || 0;
+          valB = weights[String(valB || '').toLowerCase()] || 0;
+          return sortDirection === 'asc' ? valA - valB : valB - valA;
+        }
+
+        if (sortField === 'id') {
+          valA = Number(valA) || 0;
+          valB = Number(valB) || 0;
+          return sortDirection === 'asc' ? valA - valB : valB - valA;
+        }
+
+        if (sortField === 'bug_key') {
+          valA = String(valA || '');
+          valB = String(valB || '');
+          return sortDirection === 'asc' ? valA.localeCompare(valB, undefined, { numeric: true }) : valB.localeCompare(valA, undefined, { numeric: true });
+        }
+
+        valA = String(valA || '').toLowerCase();
+        valB = String(valB || '').toLowerCase();
+        return sortDirection === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+      });
+
+      // Update Summary Stats
+      document.getElementById('statTotal').innerText = allBugs.filter(b => b.is_deleted !== 1).length;
+      document.getElementById('statCritical').innerText = allBugs.filter(b => b.is_deleted !== 1 && ['critical', 'high'].includes(String(b.severity).toLowerCase())).length;
+      document.getElementById('statActive').innerText = allBugs.filter(b => b.is_deleted !== 1 && ['active', 'open'].includes(String(b.status).toLowerCase())).length;
+      document.getElementById('statSolved').innerText = allBugs.filter(b => b.is_deleted !== 1 && ['solved', 'closed', 'approved'].includes(String(b.status).toLowerCase())).length;
+
+      if (sorted.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colSpan="9" style="text-align: center; padding: 2.5rem; color: #8e9bb0;">
+              No matching bugs found. Click <strong>PULL LATEST BUGS FROM GOOGLE SHEET</strong> above to refresh.
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      tbody.innerHTML = sorted.map(b => {
+        const sev = String(b.severity || 'Medium').toLowerCase();
+        const env = String(b.environment || 'Prod');
+        const pBadge = getPlatformBadge(b);
+        return `
+          <tr style="cursor: pointer;" onclick="openModal(${b.id})">
+            <td>
+              <span class="${pBadge.className}" style="${pBadge.styleStr}" title="Platform: ${pBadge.fullName}">
+                ${pBadge.text}
+              </span>
+            </td>
+            <td><span class="bug-key">${b.bug_key || 'BUG-000'}</span></td>
+            <td>
+              <strong style="color: #f0f4f8;">${escapeHtml(b.title || 'Untitled Issue')}</strong>
+            </td>
+            <td>${escapeHtml(b.platform || 'Android')} (${escapeHtml(b.product || 'Quin Within')})</td>
+            <td><span class="env-tag ${env.toLowerCase()}">${env}</span></td>
+            <td><span class="badge badge-${sev}">${b.severity || 'Medium'}</span></td>
+            <td>${escapeHtml(b.category || 'Functional')}</td>
+            <td><span style="color: #60a5fa; font-weight: 600;">${escapeHtml(b.status || 'Active')}</span></td>
+            <td>${escapeHtml(b.reporter || 'QA')}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function openModal(id) {
+      const bug = allBugs.find(b => b.id == id);
+      if (!bug) return;
+
+      const pBadge = getPlatformBadge(bug);
+      const modalPlatBadge = document.getElementById('modalPlatBadge');
+      if (modalPlatBadge) {
+        modalPlatBadge.className = pBadge.className;
+        modalPlatBadge.setAttribute('style', pBadge.styleStr + ' font-size: 0.82rem; padding: 0.25rem 0.65rem;');
+        modalPlatBadge.innerText = pBadge.text;
+      }
+
+      document.getElementById('modalKey').innerText = bug.bug_key || 'BUG-000';
+      document.getElementById('modalTitle').innerText = bug.title || 'Untitled Bug';
+      document.getElementById('modalDesc').innerText = bug.description || 'No additional description provided.';
+      document.getElementById('modalPlat').innerText = bug.platform || 'Android';
+      document.getElementById('modalEnv').innerText = bug.environment || 'Prod';
+      document.getElementById('modalReporter').innerText = bug.reporter || 'QA Tester';
+      document.getElementById('modalVer').innerText = `${bug.version || 'v1.0.0'} ${bug.build_number ? '(Build #' + bug.build_number + ')' : ''}`;
+      
+      const sevBadge = document.getElementById('modalSeverity');
+      const sev = String(bug.severity || 'Medium').toLowerCase();
+      sevBadge.className = `badge badge-${sev}`;
+      sevBadge.innerText = bug.severity || 'Medium';
+
+      document.getElementById('detailModal').classList.add('active');
+    }
+
+    function closeModal(e) {
+      if (!e || e.target.id === 'detailModal' || e.target.classList.contains('close-btn')) {
+        document.getElementById('detailModal').classList.remove('active');
+      }
+    }
+
+    function escapeHtml(str) {
+      return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function exportToExcel() {
+      try {
+        if (typeof XLSX === 'undefined') {
+          alert('Spreadsheet library is loading. Please try again.');
+          return;
+        }
+        const wb = XLSX.utils.book_new();
+        const activeBugs = allBugs.filter(b => b.is_deleted !== 1);
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(activeBugs.length ? activeBugs : [{ message: 'No bugs' }]), 'Bugs');
+        XLSX.writeFile(wb, `Quin_QA_Bugs_Export_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      } catch (err) {
+        console.error('Excel Export Error:', err);
+        alert('Failed to export Excel: ' + err.message);
+      }
+    }
+
+    function renderFallbackSample() {
+      allBugs = [
+        { id: 1, bug_key: 'DCAND-0001', title: 'Get Started sliding animation too slow in comparison to design', platform: 'Android', product: 'Quin Within', environment: 'Prod', severity: 'Low', category: 'UI / UX', status: 'Active', reporter: 'admin', description: 'get Started sliding animation too slow in comparison to design' }
+      ];
+      renderTable();
+    }
+  </script>
+
+</body>
+</html>
